@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Local Watch Party</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0f172a',
+                        cardBg: '#1e293b',
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-darkBg text-slate-100 min-h-screen flex flex-col font-sans select-none">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-cardBg/50 backdrop-blur px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="bg-indigo-600 p-2 rounded-xl text-white">
+                <i data-lucide="film" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-tight">SyncParty <span class="text-xs bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full border border-indigo-500/30">P2P Local</span></h1>
+                <p class="text-xs text-slate-400">Zero servers • Zero buffering • Local video sync</p>
+            </div>
+        </div>
+        <div id="connectionStatus" class="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-full text-xs font-medium border border-slate-700">
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" id="statusDot"></span>
+            <span id="statusText">Disconnected</span>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 flex flex-col gap-6">
+
+        <!-- Setup / File Load Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="setupCard">
+            <!-- Step 1: Select Video -->
+            <div class="bg-cardBg border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center space-x-2 text-indigo-400 font-semibold mb-2">
+                        <i data-lucide="folder-open" class="w-5 h-5"></i>
+                        <span>Step 1: Local Video File</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-4">Ensure everyone has the exact same video file downloaded on their device.</p>
+                </div>
+                <label class="cursor-pointer bg-slate-800 hover:bg-slate-700 border border-slate-700 transition text-sm font-medium py-2.5 px-4 rounded-xl text-center flex items-center justify-center space-x-2">
+                    <i data-lucide="upload" class="w-4 h-4"></i>
+                    <span id="fileNameDisplay">Choose Video File...</span>
+                    <input type="file" id="localVideoInput" accept="video/*" class="hidden">
+                </label>
+            </div>
+
+            <!-- Step 2: Connection Mode -->
+            <div class="bg-cardBg border border-slate-800 rounded-2xl p-5 flex flex-col justify-between md:col-span-2">
+                <div>
+                    <div class="flex items-center space-x-2 text-indigo-400 font-semibold mb-2">
+                        <i data-lucide="users" class="w-5 h-5"></i>
+                        <span>Step 2: P2P Connection Setup</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-4">One person creates the room as <strong>Host</strong>. Friends join as <strong>Guests</strong>.</p>
+                </div>
+                <div class="flex flex-wrap gap-3">
+                    <button id="btnCreateRoom" class="bg-indigo-600 hover:bg-indigo-500 transition text-sm font-medium py-2.5 px-5 rounded-xl flex items-center space-x-2">
+                        <i data-lucide="radio" class="w-4 h-4"></i>
+                        <span>Create Room (Host)</span>
+                    </button>
+                    <button id="btnJoinRoom" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 transition text-sm font-medium py-2.5 px-5 rounded-xl flex items-center space-x-2">
+                        <i data-lucide="log-in" class="w-4 h-4"></i>
+                        <span>Join Room (Guest)</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Connection Modal / Box (Hidden by default) -->
+        <div id="connectionBox" class="hidden bg-cardBg border border-indigo-500/30 rounded-2xl p-6 shadow-xl">
+            <h3 id="connBoxTitle" class="font-bold text-base mb-2 text-indigo-300">Connection Handshake</h3>
+            <p id="connBoxDesc" class="text-xs text-slate-400 mb-4">Follow instructions to exchange connection tokens with your friends.</p>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">1. Offer / Answer Data</label>
+                    <textarea id="sdpData" rows="4" readonly class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs font-mono text-slate-300 focus:outline-none" placeholder="Connection token will appear here..."></textarea>
+                </div>
+                <div id="remoteInputContainer" class="hidden">
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Paste Friend's Token Here</label>
+                    <textarea id="remoteSdpData" rows="4" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs font-mono text-slate-300 focus:outline-none focus:border-indigo-500" placeholder="Paste incoming SDP token here..."></textarea>
+                    <button id="btnSubmitRemote" class="mt-3 bg-indigo-600 hover:bg-indigo-500 transition text-sm font-medium py-2 px-4 rounded-xl">Connect & Establish Link</button>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button id="btnCopySdp" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium py-2 px-4 rounded-xl flex items-center space-x-1.5">
+                        <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                        <span>Copy Token</span>
+                    </button>
+                    <button id="btnCloseConnBox" class="text-xs text-slate-400 hover:text-slate-200 px-3">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Player Section -->
+        <div class="relative bg-black rounded-2xl overflow-hidden border border-slate-800 shadow-2xl flex-1 flex flex-col items-center justify-center group aspect-video max-h-[70vh]">
+            <video id="videoPlayer" class="w-full h-full object-contain" preload="auto"></video>
+            
+            <!-- Overlay when no video is loaded -->
+            <div id="videoPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm text-center p-6">
+                <div class="bg-slate-900 p-4 rounded-2xl border border-slate-800 mb-3 text-indigo-400">
+                    <i data-lucide="video-off" class="w-8 h-8"></i>
+                </div>
+                <h3 class="font-semibold text-slate-200">No Video Loaded</h3>
+                <p class="text-xs text-slate-400 mt-1 max-w-sm">Load your local video file using Step 1 above to begin watching together.</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Script Logic for WebRTC and Video Sync -->
+    <script>
+        lucide.createIcons();
+
+        const localVideoInput = document.getElementById('localVideoInput');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const videoPlaceholder = document.getElementById('videoPlaceholder');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+
+        const btnCreateRoom = document.getElementById('btnCreateRoom');
+        const btnJoinRoom = document.getElementById('btnJoinRoom');
+        const connectionBox = document.getElementById('connectionBox');
+        const connBoxTitle = document.getElementById('connBoxTitle');
+        const connBoxDesc = document.getElementById('connBoxDesc');
+        const sdpData = document.getElementById('sdpData');
+        const remoteInputContainer = document.getElementById('remoteInputContainer');
+        const remoteSdpData = document.getElementById('remoteSdpData');
+        const btnSubmitRemote = document.getElementById('btnSubmitRemote');
+        const btnCopySdp = document.getElementById('btnCopySdp');
+        const btnCloseConnBox = document.getElementById('btnCloseConnBox');
+
+        let pc = null;
+        let dataChannel = null;
+        let isHost = false;
+        let isSyncingFromPeer = false; // Prevent infinite event loops
+
+        // STUN servers to assist NAT traversal
+        const rtcConfig = {
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        };
+
+        // 1. Load Local Video File
+        localVideoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                fileNameDisplay.textContent = file.name;
+                const fileURL = URL.createObjectURL(file);
+                videoPlayer.src = fileURL;
+                videoPlaceholder.classList.add('hidden');
+            }
+        });
+
+        // 2. WebRTC Setup Functions
+        function createPeerConnection() {
+            if (pc) return pc;
+            pc = new RTCPeerConnection(rtcConfig);
+
+            pc.onicecandidate = (event) => {
+                if (event.candidate === null) {
+                    // ICE gathering complete, put full SDP in textarea
+                    sdpData.value = JSON.stringify(pc.localDescription);
+                }
+            };
+
+            return pc;
+        }
+
+        // Host creates room
+        btnCreateRoom.addEventListener('click', async () => {
+            isHost = true;
+            createPeerConnection();
+            
+            dataChannel = pc.createDataChannel('sync-channel');
+            setupDataChannelEvents();
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            connBoxTitle.textContent = "Host: Share Offer with Friend";
+            connBoxDesc.textContent = "Copy your Offer token below and send it to your friend via WhatsApp/iMessage.";
+            remoteInputContainer.classList.remove('hidden');
+            connectionBox.classList.remove('hidden');
+        });
+
+        // Guest joins room
+        btnJoinRoom.addEventListener('click', async () => {
+            isHost = false;
+            createPeerConnection();
+
+            pc.ondatachannel = (event) => {
+                dataChannel = event.channel;
+                setupDataChannelEvents();
+            };
+
+            connBoxTitle.textContent = "Guest: Enter Host Offer";
+            connBoxDesc.textContent = "Paste the Host's offer token below, then copy your generated Answer to send back.";
+            remoteInputContainer.classList.remove('hidden');
+            connectionBox.classList.remove('hidden');
+        });
+
+        // Handle submission of remote SDP
+        btnSubmitRemote.addEventListener('click', async () => {
+            try {
+                const remoteDesc = JSON.parse(remoteSdpData.value);
+                await pc.setRemoteDescription(new RTCSessionDescription(remoteDesc));
+
+                if (!isHost) {
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    connBoxTitle.textContent = "Guest: Send Answer back to Host";
+                    connBoxDesc.textContent = "Copy your Answer token below and send it back to the Host.";
+                } else {
+                    statusText.textContent = "Connected!";
+                    statusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
+                    connectionBox.classList.add('hidden');
+                }
+            } catch (err) {
+                alert("Invalid SDP token format. Please check and try again.");
+                console.error(err);
+            }
+        });
+
+        btnCopySdp.addEventListener('click', () => {
+            sdpData.select();
+            document.execCommand('copy');
+            btnCopySdp.innerHTML = `<i data-lucide="check" class="w-3.5 h-3.5 text-emerald-400"></i><span>Copied!</span>`;
+            lucide.createIcons();
+            setTimeout(() => {
+                btnCopySdp.innerHTML = `<i data-lucide="copy" class="w-3.5 h-3.5"></i><span>Copy Token</span>`;
+                lucide.createIcons();
+            }, 2000);
+        });
+
+        btnCloseConnBox.addEventListener('click', () => {
+            connectionBox.classList.add('hidden');
+        });
+
+        function setupDataChannelEvents() {
+            dataChannel.onopen = () => {
+                statusText.textContent = "Connected!";
+                statusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
+                connectionBox.classList.add('hidden');
+            };
+
+            dataChannel.onclose = () => {
+                statusText.textContent = "Disconnected";
+                statusDot.className = "w-2.5 h-2.5 rounded-full bg-rose-500";
+            };
+
+            dataChannel.onmessage = (event) => {
+                const message = JSON.parse(event.data);
+                isSyncingFromPeer = true;
+
+                switch (message.type) {
+                    case 'play':
+                        videoPlayer.currentTime = message.currentTime;
+                        videoPlayer.play().catch(() => {});
+                        break;
+                    case 'pause':
+                        videoPlayer.currentTime = message.currentTime;
+                        videoPlayer.pause();
+                        break;
+                    case 'seek':
+                        videoPlayer.currentTime = message.currentTime;
+                        break;
+                }
+
+                setTimeout(() => { isSyncingFromPeer = false; }, 50);
+            };
+        }
+
+        // 3. Broadcast Video Controls over WebRTC
+        function sendSyncCommand(type) {
+            if (dataChannel && dataChannel.readyState === 'open' && !isSyncingFromPeer) {
+                dataChannel.send(JSON.stringify({
+                    type: type,
+                    currentTime: videoPlayer.currentTime
+                }));
+            }
+        }
+
+        videoPlayer.addEventListener('play', () => sendSyncCommand('play'));
+        videoPlayer.addEventListener('pause', () => sendSyncCommand('pause'));
+        videoPlayer.addEventListener('seeked', () => sendSyncCommand('seek'));
+
+    </script>
+</body>
+</html>
