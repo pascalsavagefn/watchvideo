@@ -173,7 +173,6 @@
             if (pc) return pc;
             pc = new RTCPeerConnection(rtcConfig);
 
-            // Populate token immediately when local description is set
             pc.onicegatheringstatechange = () => {
                 if (pc.localDescription) {
                     sdpData.value = JSON.stringify(pc.localDescription);
@@ -230,9 +229,8 @@
                     connBoxTitle.textContent = "Guest: Send Answer back to Host";
                     connBoxDesc.textContent = "Copy your Answer token below and send it back to the Host.";
                 } else {
-                    statusText.textContent = "Connected!";
-                    statusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
-                    connectionBox.classList.add('hidden');
+                    // Host has accepted the guest's answer, we wait for dataChannel.onopen to finalize connection status
+                    connBoxDesc.textContent = "Establishing P2P link with Guest...";
                 }
             } catch (err) {
                 alert("Invalid SDP token format. Please check and try again.");
@@ -257,6 +255,7 @@
 
         function setupDataChannelEvents() {
             dataChannel.onopen = () => {
+                // This triggers automatically on BOTH Host and Guest when the P2P pipe is active!
                 statusText.textContent = "Connected!";
                 statusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
                 connectionBox.classList.add('hidden');
